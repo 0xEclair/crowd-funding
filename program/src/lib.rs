@@ -1,12 +1,13 @@
-use solana_program::account_info::AccountInfo;
+use solana_program::account_info::{AccountInfo, next_account_info};
 use solana_program::{entrypoint, msg};
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
-use borsh::{
-    BorshSerialize,
-    BorshDeserialize
-};
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::program_error::ProgramError::InvalidInstructionData;
+use solana_program::rent::Rent;
+use solana_program::sysvar::Sysvar;
+
 fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -32,11 +33,74 @@ fn process_instruction(
 entrypoint!(process_instruction);
 
 fn create_campaign(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
-    let mut accounts = accounts.iter();
+    let accounts_iter = &mut accounts.iter();
+    let writing_account = next_account_info(accounts_iter)?;
+    let creator_account = next_account_info(accounts_iter)?;
+    if !creator_account.is_signer {
+        msg!("creator_account should be signer");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    if writing_account.owner != program_id {
+        msg!("writing_account isn't owned by program");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let mut input_data =
+        CampaignDetails::try_from_slice(&instruction_data)
+            .expect("Serialization for instruction data didn't worked");
+
+    if input_data.admin != *creator_account.key {
+        msg!("Invalid instruction data");
+        return Err(ProgramError::InvalidInstructionData);
+    }
+
+    let rent_exemption = Rent::get()?.minimum_balance(writing_account.data_len());
+    if **writing_account.lamports.borrow() < rent_exemption {
+        msg!("The balance of writing_account should be more than rent_exemption");
+        return Err(ProgramError::InsufficientFunds);
+    }
+    input_data.amount_donated = 0;
+    input_data.serialize(&mut &mut writing_account.data.borrow_mut()[..])?;
     Ok(())
 }
 
 fn withdraw(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
+    let account_iter = &mut accounts.iter();
+    let writing_account = next_account_info(account_iter)?;
+    let admin_account = next_account_info(account_iter)?;
+
+    if writing_account.owner != program_id {
+        msg!("writing_account isn't owned by program.");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    if !admin_account.is_signer {
+        msg!("admin should be signer");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let campaign_data =
+        CampaignDetails::try_from_slice(*writing_account.data.borrow())
+            .expect("Error deserializing data");
+
+    if campaign_data.admin != *admin_account.key {
+        msg!("Only the account admin can withdraw");
+        return Err(ProgramError::InvalidInstructionData);
+    }
+
+    let input_data =
+        WithdrawRequest::try_from_slice(&instruction_data)
+            .expect("Instruction data deserialization didn't work");
+
+    let rent_exemption = Rent::get()?.minimum_balance(writing_account.data_len());
+
+    if **writing_account.lamports.borrow() < rent_exemption {
+        msg!("Insufficient balance");
+        return Err(ProgramError::InsufficientFunds);
+    }
+
+    **writing_account.try_borrow_mut_lamports()? -= input_data.amount;
+    **admin_account.try_borrow_mut_lamports()? += input_data.amount;
     Ok(())
 }
 
@@ -51,4 +115,9 @@ struct CampaignDetails {
     pub description: String,
     pub image_link: String,
     pub amount_donated: u64
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct WithdrawRequest {
+    pub amount: u64
 }
