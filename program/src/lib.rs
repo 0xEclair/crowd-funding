@@ -1,13 +1,14 @@
-use solana_program::account_info::{AccountInfo, next_account_info};
-use solana_program::{entrypoint, msg};
-use solana_program::entrypoint::ProgramResult;
-use solana_program::program_error::ProgramError;
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+    account_info::{AccountInfo, next_account_info},
+    entrypoint,
+    msg,
+    entrypoint::ProgramResult,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    rent::Rent,
+    sysvar::Sysvar,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::program_error::ProgramError::InvalidInstructionData;
-use solana_program::rent::Rent;
-use solana_program::sysvar::Sysvar;
-use test::bench::iter;
 
 fn process_instruction(
     program_id: &Pubkey,
@@ -105,7 +106,7 @@ fn withdraw(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u
     Ok(())
 }
 
-fn donate(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
+fn donate(program_id: &Pubkey, accounts: &[AccountInfo], _instruction_data: &[u8]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let writing_account = next_account_info(accounts_iter)?;
     let donator_program_account = next_account_info(accounts_iter)?;
@@ -130,11 +131,11 @@ fn donate(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]
         CampaignDetails::try_from_slice(*writing_account.data.borrow())
             .expect("Error deserializing data");
     campaign_data.amount_donated += **donator_program_account.lamports.borrow();
-    
+
     **writing_account.try_borrow_mut_lamports()? += **donator_program_account.lamports.borrow();
     **donator_program_account.try_borrow_mut_lamports()? = 0;
 
-    campaign_data.serialize(&mut &mut writing_account.data.borrow()[..])?;
+    campaign_data.serialize(&mut &mut writing_account.data.borrow_mut()[..])?;
     Ok(())
 }
 
