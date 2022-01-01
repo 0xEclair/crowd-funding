@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError::InvalidInstructionData;
 use solana_program::rent::Rent;
 use solana_program::sysvar::Sysvar;
+use test::bench::iter;
 
 fn process_instruction(
     program_id: &Pubkey,
@@ -105,6 +106,35 @@ fn withdraw(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u
 }
 
 fn donate(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let writing_account = next_account_info(accounts_iter)?;
+    let donator_program_account = next_account_info(accounts_iter)?;
+    let donator = next_account_info(accounts_iter)?;
+
+    if writing_account.owner != program_id {
+        msg!("writing_account isn't owned by program.");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    if donator_program_account.owner != program_id {
+        msg!("donator_program_account isn't owned by program");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    if !donator.is_signer {
+        msg!("donator should be signer");
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let mut campaign_data =
+        CampaignDetails::try_from_slice(*writing_account.data.borrow())
+            .expect("Error deserializing data");
+    campaign_data.amount_donated += **donator_program_account.lamports.borrow();
+    
+    **writing_account.try_borrow_mut_lamports()? += **donator_program_account.lamports.borrow();
+    **donator_program_account.try_borrow_mut_lamports()? = 0;
+
+    campaign_data.serialize(&mut &mut writing_account.data.borrow()[..])?;
     Ok(())
 }
 
