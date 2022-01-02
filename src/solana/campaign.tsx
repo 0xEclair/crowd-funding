@@ -1,6 +1,23 @@
-import {connection, programId, setPayerAndBlockhashTransaction, signAndSendTransaction, wallet} from "./index";
-import {PublicKey, SystemProgram, TransactionInstruction} from "@solana/web3.js";
-import {serialize} from "borsh";
+// third-party library
+import {
+    AccountInfo,
+    PublicKey,
+    SystemProgram,
+    TransactionInstruction
+} from "@solana/web3.js";
+import {
+    serialize,
+    deserialize
+} from "borsh";
+
+// local library
+import {
+    connection,
+    programId,
+    wallet,
+    setPayerAndBlockhashTransaction,
+    signAndSendTransaction
+} from "./index";
 
 class CampaignDetails {
     constructor(properties: any) {
@@ -9,25 +26,21 @@ class CampaignDetails {
         });
     }
 
-    static schema: any = new Map([
-        [
-            CampaignDetails,
-            {
-                kind: "struct",
-                fields: [
-                    ["admin", [32]],
-                    ["name", "string"],
-                    ["description", "string"],
-                    ["image_link", "string"],
-                    ["amount_donated", "u64"]
-                ]
-            }
-        ]
-    ]);
+    static schema = new Map([[CampaignDetails,
+        {
+            kind: 'struct',
+            fields: [
+                ['admin', [32]],
+                ['name', 'string'],
+                ['description', 'string'],
+                ['image_link', 'string'],
+                ['amount_donated', 'u64']]
+        }]]);
 }
 
 export async function createCampaign(name: string, description: string, image_link: string) {
     await checkWallet();
+    console.log("start creating campaign");
     const SEED = "abcdef" + Math.random().toString();
     const newAccount = await PublicKey.createWithSeed(wallet.publicKey as PublicKey, SEED, programId);
     const campaign = new CampaignDetails({
@@ -36,7 +49,9 @@ export async function createCampaign(name: string, description: string, image_li
         image_link: image_link,
         admin: wallet.publicKey?.toBuffer(),
         amount_donated: 0
+
     });
+
     const data = serialize(CampaignDetails.schema, campaign);
     const data_to_send = new Uint8Array([0, ...data]);
     const lamports = await connection.getMinimumBalanceForRentExemption(data.length);
@@ -53,7 +68,7 @@ export async function createCampaign(name: string, description: string, image_li
     const instructionToOurProgram = new TransactionInstruction({
         keys: [
             {pubkey: newAccount, isSigner: false, isWritable: true},
-            {pubkey: wallet.publicKey as PublicKey, isSigner: true, isWritable: false}
+            {pubkey: wallet.publicKey!, isSigner: true, isWritable: false}
         ],
         programId: programId,
         data: Buffer.from(data_to_send)
@@ -62,11 +77,35 @@ export async function createCampaign(name: string, description: string, image_li
     const trans = await setPayerAndBlockhashTransaction([createProgramAccount, instructionToOurProgram]);
     const signature = await signAndSendTransaction(trans);
     const result = await connection.confirmTransaction(signature);
-    console.log("end sendMessage", result);
+    console.log("creating new campaign successed", result);
 }
 
 async function checkWallet() {
     if(!wallet.connected) {
         await wallet.connect();
     }
+}
+
+export async function getAllCampaigns(): Promise<({pubId: PublicKey, campaign: CampaignDetails} | null)[]> {
+    const accounts: {pubkey: PublicKey, account: AccountInfo<Buffer>}[] = await connection.getProgramAccounts(programId);
+    const campaigns: ({pubId: PublicKey, campaign: CampaignDetails} | null) [] = accounts!.map((e: { pubkey: PublicKey, account: AccountInfo<Buffer> }) => {
+        try {
+            const data: any = deserialize(CampaignDetails.schema, CampaignDetails, e.account.data);
+            return {
+                pubId: e.pubkey,
+                campaign: new CampaignDetails({
+                    name: data.name,
+                    description: data.description,
+                    image_link: data.image_link,
+                    amount_donated: data.amount_donated,
+                    admin: data.admin
+                })
+            };
+        }
+        catch (err) {
+            console.log(err);
+            return null;
+        }
+    });
+    return campaigns;
 }

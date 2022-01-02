@@ -1,11 +1,6 @@
+// third-party library
 import Wallet from "@project-serum/sol-wallet-adapter";
-import {
-    Connection, SystemProgram,
-    Transaction, PublicKey,
-    TransactionInstruction,
-    TransactionInstructionCtorFields
-} from "@solana/web3.js";
-import {serialize, deserialize} from "borsh";
+import { Connection, Transaction, PublicKey } from "@solana/web3.js";
 
 const cluster = "https://api.devnet.solana.com";
 export const connection = new Connection(cluster, "confirmed");
