@@ -19,7 +19,7 @@ import {
     signAndSendTransaction
 } from "./index";
 
-class CampaignDetails {
+export class CampaignDetails {
     constructor(properties: any) {
         Object.keys(properties).forEach((key: string) => {
             (this as any)[key] = properties[key];

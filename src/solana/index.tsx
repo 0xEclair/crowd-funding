@@ -33,7 +33,6 @@ export async function signAndSendTransaction(transaction: any) {
         return signature;
     }
     catch (err) {
-        console.log("signAndSendTransaction error", err);
-        throw err;
+        throw(err);
     }
 }
