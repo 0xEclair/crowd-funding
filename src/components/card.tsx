@@ -3,7 +3,7 @@ import { Button, Card, Image, Input, Spacer, Text, useInput } from "@geist-ui/re
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 
 // local library
-import { donate } from "../solana/campaign";
+import { donate, withdraw } from "../solana/campaign";
 
 const DonateButton: React.FC<{campaignPubkey: PublicKey}> = (campaignPubkey) => {
   const { state, setState, reset, bindings } = useInput("0");
@@ -14,6 +14,19 @@ const DonateButton: React.FC<{campaignPubkey: PublicKey}> = (campaignPubkey) => 
       <Button auto type={"secondary"} scale={1/3} onClick={() => {
         donate(campaignPubkey.campaignPubkey, Number(state));
       }}>doante</Button>
+    </>
+  )
+}
+
+const WithdrawButton: React.FC<{campaignPubkey: PublicKey}> = (campaignPubkey) => {
+  const { state, setState, reset, bindings } = useInput("0");
+  return(
+    <>
+      <Input {...bindings} />
+      <Spacer h={.5} />
+      <Button auto type={"secondary"} scale={1/3} onClick={() => {
+        withdraw(campaignPubkey.campaignPubkey, Number(state));
+      }}>withdraw</Button>
     </>
   )
 }
@@ -45,6 +58,8 @@ export const CampaignCard = (campaign: any) => {
         <Text h5 type={"secondary"} small>raised: {toFixed(campaign.campaign.amount_donated/LAMPORTS_PER_SOL)} SOL</Text>
         <Card.Footer>
           <DonateButton campaignPubkey={campaign.pubId} />
+          <Spacer w={4}/>
+          <WithdrawButton campaignPubkey={campaign.pubId} />
         </Card.Footer>
       </Card>
     );

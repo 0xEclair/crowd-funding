@@ -44,4 +44,6 @@ html, body {
 
 .campaign-card {
   width: 23%;
+  margin-top: 2.5px;
+  margin-bottom: 2.5px;
 }

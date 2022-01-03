@@ -38,6 +38,26 @@ export class CampaignDetails {
         }]]);
 }
 
+class WithdrawRequest {
+    constructor(props: any) {
+        Object.keys(props).forEach((key) => {
+            (this as any)[key] = props[key];
+        });
+    }
+
+    static schema = new Map([
+      [
+        WithdrawRequest,
+          {
+              kind: "struct",
+              fields: [
+                ["amount", "u64"]
+              ]
+          }
+      ]
+    ])
+}
+
 export async function create(name: string, description: string, image_link: string) {
     await checkWallet();
     console.log("start creating campaign");
@@ -139,4 +159,28 @@ export async function donate(campaignPubKey: PublicKey, amount: number) {
     const signature = await signAndSendTransaction(trans);
     const result = await connection.confirmTransaction(signature);
     console.log("end donate", result);
+}
+
+export const withdraw = async (campaignPubKey: PublicKey, amount: number) => {
+    await checkWallet();
+
+    const withdrawRequest = new WithdrawRequest({
+        amount: amount
+    });
+    const data = serialize(WithdrawRequest.schema, withdrawRequest);
+    const data_to_send = Buffer.from(new Uint8Array([1, ...data]));
+
+    const instructionToOurProgram = new TransactionInstruction({
+        keys: [
+            {pubkey: campaignPubKey, isSigner: false, isWritable: true},
+            {pubkey: wallet.publicKey!, isSigner: true, isWritable: false}
+        ],
+        programId: programId,
+        data: data_to_send
+    });
+
+    const trans = await setPayerAndBlockhashTransaction([instructionToOurProgram]);
+    const signature = await signAndSendTransaction(trans);
+    const result = await connection.confirmTransaction(signature);
+    console.log("end withdraw", result);
 }
