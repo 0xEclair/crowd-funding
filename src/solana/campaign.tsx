@@ -38,7 +38,7 @@ class CampaignDetails {
         }]]);
 }
 
-export async function createCampaign(name: string, description: string, image_link: string) {
+export async function create(name: string, description: string, image_link: string) {
     await checkWallet();
     console.log("start creating campaign");
     const SEED = "abcdef" + Math.random().toString();
@@ -86,7 +86,7 @@ async function checkWallet() {
     }
 }
 
-export async function getAllCampaigns(): Promise<({pubId: PublicKey, campaign: CampaignDetails} | null)[]> {
+export async function campaigns(): Promise<({pubId: PublicKey, campaign: CampaignDetails} | null)[]> {
     const accounts: {pubkey: PublicKey, account: AccountInfo<Buffer>}[] = await connection.getProgramAccounts(programId);
     const campaigns: ({pubId: PublicKey, campaign: CampaignDetails} | null) [] = accounts!.map((e: { pubkey: PublicKey, account: AccountInfo<Buffer> }) => {
         try {
@@ -108,4 +108,35 @@ export async function getAllCampaigns(): Promise<({pubId: PublicKey, campaign: C
         }
     });
     return campaigns;
+}
+
+export async function donate(campaignPubKey: PublicKey, amount: number) {
+    await checkWallet();
+
+    const SEED = "abcdef" + Math.random().toString();
+    const newAccount = await PublicKey.createWithSeed(wallet.publicKey!, SEED, programId);
+    const createProgramAccount = SystemProgram.createAccountWithSeed({
+        fromPubkey: wallet.publicKey!,
+        basePubkey: wallet.publicKey!,
+        seed: SEED,
+        newAccountPubkey: newAccount,
+        lamports: amount,
+        space: 1,
+        programId: programId
+    });
+
+    const instructionToOurProgram = new TransactionInstruction({
+        keys: [
+            { pubkey: campaignPubKey, isSigner: false, isWritable: true },
+            { pubkey: newAccount, isSigner: false, isWritable: false },
+            { pubkey: wallet.publicKey!, isSigner: true, isWritable: false },
+        ],
+        programId: programId,
+        data: Buffer.from(new Uint8Array([2]))
+    });
+
+    const trans = await setPayerAndBlockhashTransaction([createProgramAccount, instructionToOurProgram]);
+    const signature = await signAndSendTransaction(trans);
+    const result = await connection.confirmTransaction(signature);
+    console.log("end donate", result);
 }
