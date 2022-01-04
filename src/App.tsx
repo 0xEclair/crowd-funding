@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './App.css';
 import { campaigns } from "./solana/campaign";
 import { CampaignCard } from "./components/card";
+import { CreateCampaignModal } from "./components/modal";
 
 function App() {
   const [cards, setCards] = useState([]);
@@ -33,6 +34,9 @@ function App() {
           Source
         </a>
       </header>
+      <div className={"create-campaign-modal"}>
+        {CreateCampaignModal()}
+      </div>
     </div>
   );
 }
